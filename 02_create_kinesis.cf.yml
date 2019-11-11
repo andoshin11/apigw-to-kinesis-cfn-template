@@ -181,3 +181,10 @@ Resources:
             }
         IntegrationResponses:
           - StatusCode: "200"
+  # RecordsResource
+  RecordsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref KinesisProxy
+      ParentId: !Ref StreamNameResource
+      PathPart: records
