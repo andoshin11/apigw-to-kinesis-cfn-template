@@ -221,3 +221,10 @@ Resources:
             }
         IntegrationResponses:
           - StatusCode: "200"
+  # ShardIteratorResource
+  ShardIteratorResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref KinesisProxy
+      ParentId: !Ref StreamNameResource
+      PathPart: sharditerator
