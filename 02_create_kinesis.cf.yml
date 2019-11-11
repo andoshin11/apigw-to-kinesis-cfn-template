@@ -188,3 +188,36 @@ Resources:
       RestApiId: !Ref KinesisProxy
       ParentId: !Ref StreamNameResource
       PathPart: records
+  PutRecords:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: "PUT"
+      ResourceId: !Ref RecordsResource
+      RestApiId: !Ref KinesisProxy
+      AuthorizationType: "NONE"
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseModels:
+            "application/json": "Empty"
+      Integration:
+        Type: "AWS"
+        Uri: "arn:aws:apigateway:ap-northeast-1:kinesis:action/PutRecords"
+        IntegrationHttpMethod: "POST"
+        Credentials: !GetAtt APIGatewayKinesisAccessRole.Arn
+        RequestParameters:
+          "integration.request.header.Content-Type": "'application/x-amz-json-1.1'"
+        RequestTemplates:
+          "application/json": |
+            {
+              "StreamName": "$input.params('stream-name')",
+              "Records": [
+                #foreach($elm in $input.path('$.records'))
+                  {
+                    "Data": "$util.base64Encode($elm.data)",
+                    "PartitionKey": "$elm.partition-key"
+                  }#if($foreach.hasNext),#end
+                #end
+              ]
+            }
+        IntegrationResponses:
+          - StatusCode: "200"
