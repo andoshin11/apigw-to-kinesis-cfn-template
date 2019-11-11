@@ -1,12 +1,31 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
 Resources:
+  LogBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: snapsnap-test-log-bucket
   FirstKinesisStream:
     Type: AWS::Kinesis::Stream
     Properties:
       Name: SnapsnapTestStream
       RetentionPeriodHours: 24
       ShardCount: 1
+  FirstKinesisFirehose:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties:
+      DeliveryStreamName: SnapsnapTestFirehose
+      DeliveryStreamType: KinesisStreamAsSource
+      KinesisStreamSourceConfiguration:
+        KinesisStreamARN: !GetAtt FirstKinesisStream.Arn
+        RoleARN: !GetAtt FirehoseS3FullAccessRole.Arn
+      S3DestinationConfiguration:
+        BucketARN: !GetAtt LogBucket.Arn
+        CompressionFormat: "GZIP"
+        BufferingHints:
+          IntervalInSeconds: 60
+          SizeInMBs: 1
+        RoleARN: !GetAtt FirehoseS3FullAccessRole.Arn
   KinesisSamplePolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
@@ -17,6 +36,29 @@ Resources:
             Action:
               - "kinesis:*"
             Resource: "*"
+  FirehoseS3FullAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "s3:AbortMultipartUpload"
+              - "s3:GetBucketLocation"
+              - "s3:GetObject"
+              - "s3:ListBucket"
+              - "s3:ListBucketMultipartUploads"
+              - "s3:PutObject"
+            Resource:
+              - !GetAtt LogBucket.Arn
+          - Effect: "Allow"
+            Action:
+              - "kinesis:DescribeStream"
+              - "kinesis:GetShardIterator"
+              - "kinesis:GetRecords"
+            Resource:
+              - !GetAtt FirstKinesisStream.Arn
   APIGatewayKinesisAccessRole:
     Type: AWS::IAM::Role
     Properties:
@@ -32,6 +74,20 @@ Resources:
       Path: "/"
       ManagedPolicyArns:
         - !Ref KinesisSamplePolicy
+  FirehoseS3FullAccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: firehoseS3FullAccessRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - firehose.amazonaws.com
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - !Ref FirehoseS3FullAccessPolicy
   KinesisProxy:
     Type: AWS::ApiGateway::RestApi
     Properties:
