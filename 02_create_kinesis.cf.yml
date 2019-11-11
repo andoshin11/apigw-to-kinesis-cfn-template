@@ -228,3 +228,33 @@ Resources:
       RestApiId: !Ref KinesisProxy
       ParentId: !Ref StreamNameResource
       PathPart: sharditerator
+  GetShardIterator:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: "GET"
+      ResourceId: !Ref ShardIteratorResource
+      RestApiId: !Ref KinesisProxy
+      AuthorizationType: "NONE"
+      RequestParameters:
+        "method.request.querystring.shard-id": true
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseModels:
+            "application/json": "Empty"
+      Integration:
+        Type: "AWS"
+        Uri: "arn:aws:apigateway:ap-northeast-1:kinesis:action/GetShardIterator"
+        IntegrationHttpMethod: "POST"
+        Credentials: !GetAtt APIGatewayKinesisAccessRole.Arn
+        RequestParameters:
+          "integration.request.header.Content-Type": "'application/x-amz-json-1.1'"
+          "integration.request.querystring.shard-id": "method.request.querystring.shard-id"
+        RequestTemplates:
+          "application/json": |
+            {
+              "StreamName": "$input.params('stream-name')",
+              "ShardIteratorType": "TRIM_HORIZON",
+              "ShardId": "$input.params('shard-id')"
+            }
+        IntegrationResponses:
+          - StatusCode: "200"
