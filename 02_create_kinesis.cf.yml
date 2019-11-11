@@ -1,0 +1,149 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Resources:
+  FirstKinesisStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      Name: SnapsnapTestStream
+      RetentionPeriodHours: 24
+      ShardCount: 1
+  KinesisSamplePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "kinesis:*"
+            Resource: "*"
+  APIGatewayKinesisAccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: apiGateweayKinesisAccessRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action: "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - !Ref KinesisSamplePolicy
+  KinesisProxy:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: KinesisProxy
+  StreamsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref KinesisProxy
+      ParentId: !GetAtt KinesisProxy.RootResourceId
+      PathPart: streams
+  ListStreams:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: "GET"
+      ResourceId: !Ref StreamsResource
+      RestApiId: !Ref KinesisProxy
+      AuthorizationType: "NONE"
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseModels:
+            "application/json": "Empty"
+      Integration:
+        Type: "AWS"
+        Uri: "arn:aws:apigateway:ap-northeast-1:kinesis:action/ListStreams"
+        IntegrationHttpMethod: "POST"
+        Credentials: !GetAtt APIGatewayKinesisAccessRole.Arn
+        RequestParameters:
+          "integration.request.header.Content-Type": "'application/x-amz-json-1.1'"
+        RequestTemplates:
+          "application/json": "{}"
+        IntegrationResponses:
+          - StatusCode: "200"
+  # Describe Stream
+  StreamNameResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref KinesisProxy
+      ParentId: !Ref StreamsResource
+      PathPart: "{stream-name}"
+  DescribeStream:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: "GET"
+      ResourceId: !Ref StreamNameResource
+      RestApiId: !Ref KinesisProxy
+      AuthorizationType: "NONE"
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseModels:
+            "application/json": "Empty"
+      Integration:
+        Type: "AWS"
+        Uri: "arn:aws:apigateway:ap-northeast-1:kinesis:action/DescribeStream"
+        IntegrationHttpMethod: "POST"
+        Credentials: !GetAtt APIGatewayKinesisAccessRole.Arn
+        RequestParameters:
+          "integration.request.header.Content-Type": "'application/x-amz-json-1.1'"
+        RequestTemplates:
+          "application/json": |
+            {
+              "StreamName": "$input.params('stream-name')"
+            }
+        IntegrationResponses:
+          - StatusCode: "200"
+  CreateStream:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: "POST"
+      ResourceId: !Ref StreamNameResource
+      RestApiId: !Ref KinesisProxy
+      AuthorizationType: "NONE"
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseModels:
+            "application/json": "Empty"
+      Integration:
+        Type: "AWS"
+        Uri: "arn:aws:apigateway:ap-northeast-1:kinesis:action/CreateStream"
+        IntegrationHttpMethod: "POST"
+        Credentials: !GetAtt APIGatewayKinesisAccessRole.Arn
+        RequestParameters:
+          "integration.request.header.Content-Type": "'application/x-amz-json-1.1'"
+        RequestTemplates:
+          "application/json": |
+            {
+              "StreamName": "$input.params('stream-name')",
+              "ShardCount": #if($input.path('$.ShardCount') == '') 5 #else $input.path('$.ShardCount') #end
+            }
+        IntegrationResponses:
+          - StatusCode: "200"
+  DeleteStream:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: "DELETE"
+      ResourceId: !Ref StreamNameResource
+      RestApiId: !Ref KinesisProxy
+      AuthorizationType: "NONE"
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseModels:
+            "application/json": "Empty"
+      Integration:
+        Type: "AWS"
+        Uri: "arn:aws:apigateway:ap-northeast-1:kinesis:action/DeleteStream"
+        IntegrationHttpMethod: "POST"
+        Credentials: !GetAtt APIGatewayKinesisAccessRole.Arn
+        RequestParameters:
+          "integration.request.header.Content-Type": "'application/x-amz-json-1.1'"
+        RequestTemplates:
+          "application/json": |
+            {
+              "StreamName": "$input.params('stream-name')"
+            }
+        IntegrationResponses:
+          - StatusCode: "200"
